@@ -3,7 +3,7 @@ from tkinter import *
 from tkinter import filedialog
 import pandas as pd
 from openpyxl.workbook import Workbook
-from openpyxl.styles import Font, Color, PatternFill, numbers
+from openpyxl.styles import Font, Color, PatternFill, numbers, Border, Side
 
 
 # Main Application Frame
@@ -16,6 +16,7 @@ class Mainapp:
         self.x = 2
         self.wb = Workbook()
         self.ws = self.wb.active
+        self.ws.sheet_view.showGridLines = False
 
         # App Labels
         file_label = Label(app, bg='#003087', fg='white', text="ASF Tape")
@@ -62,7 +63,7 @@ class Mainapp:
         filedir = StringVar()
 
         self.ltv_starting_int = StringVar()
-        self.ltv_starting_int.set('10.00')
+        self.ltv_starting_int.set('10.0001')
         self.ltv_steps = StringVar()
         self.ltv_steps.set('5.00')
         self.ltv_ceiling = StringVar()
@@ -76,7 +77,7 @@ class Mainapp:
         self.fico_ceiling.set('851')
 
         self.rate_starting_int = StringVar()
-        self.rate_starting_int.set('2.00')
+        self.rate_starting_int.set('2.0001')
         self.rate_steps = StringVar()
         self.rate_steps.set('0.250')
         self.rate_ceiling = StringVar()
@@ -87,19 +88,19 @@ class Mainapp:
         self.term_steps = StringVar()
         self.term_steps.set('60')
         self.term_ceiling = StringVar()
-        self.term_ceiling.set('361')
+        self.term_ceiling.set('400')
 
         self.dti_starting_int = StringVar()
-        self.dti_starting_int.set('0.01')
+        self.dti_starting_int.set('0.0001')
         self.dti_steps = StringVar()
         self.dti_steps.set('5.00')
         self.dti_ceiling = StringVar()
         self.dti_ceiling.set('65.01')
 
         self.upb_starting_int = StringVar()
-        self.upb_starting_int.set('0')
+        self.upb_starting_int.set('0.001')
         self.upb_steps = StringVar()
-        self.upb_steps.set('50000')
+        self.upb_steps.set('100000')
         self.upb_ceiling = StringVar()
         self.upb_ceiling.set('1000000.01')
 
@@ -125,7 +126,7 @@ class Mainapp:
 
         dti_start_entry = Entry(app, textvariable=self.dti_starting_int, width=10, borderwidth=3)
         dti_step_entry = Entry(app, textvariable=self.dti_steps, width=10, borderwidth=3)
-        dti_ceiling_entry = Entry(app, textvariable=self.term_ceiling, width=10, borderwidth=3)
+        dti_ceiling_entry = Entry(app, textvariable=self.dti_ceiling, width=10, borderwidth=3)
 
         upb_start_entry = Entry(app, textvariable=self.upb_starting_int, width=10, borderwidth=3)
         upb_step_entry = Entry(app, textvariable=self.upb_steps, width=10, borderwidth=3)
@@ -294,7 +295,7 @@ class Mainapp:
                 Format(x)
                 Grouper2(x)
 
-                # Formatting Function
+                # Formatting Function    
 
         def Format(field):
 
@@ -336,11 +337,11 @@ class Mainapp:
                 self.x += 1
 
                 top = bottom + step
-                self.UPB = self.df["UPB"].loc[(self.df[field] > bottom) & (self.df[field] <= top)]
-                self.Rate = self.df["Rate"].loc[(self.df[field] > bottom) & (self.df[field] <= top)]
-                self.FICO = self.df["FICO"].loc[(self.df[field] > bottom) & (self.df[field] <= top)]
-                self.LTV = self.df["LTV"].loc[(self.df[field] > bottom) & (self.df[field] <= top)]
-                self.CLTV = self.df["CLTV"].loc[(self.df[field] > bottom) & (self.df[field] <= top)]
+                self.UPB = self.df["UPB"].loc[(self.df[field] >= bottom) & (self.df[field] < top)]
+                self.Rate = self.df["Rate"].loc[(self.df[field] >= bottom) & (self.df[field] < top)]
+                self.FICO = self.df["FICO"].loc[(self.df[field] >= bottom) & (self.df[field] < top)]
+                self.LTV = self.df["LTV"].loc[(self.df[field] >= bottom) & (self.df[field] < top)]
+                self.CLTV = self.df["CLTV"].loc[(self.df[field] >= bottom) & (self.df[field] < top)]
 
                 if field in ["LTV", "CLTV", "DTI", "Rate"]:
                     self.ws[f'B{self.x}'] = f'{round(bottom, 2)}% - {round(top, 2)}%'
@@ -367,12 +368,26 @@ class Mainapp:
                     self.ws[f'H{self.x}'] = int(sum(self.UPB * self.FICO) / self.UPB.sum())
                     self.ws[f'I{self.x}'] = round(sum(self.UPB * self.LTV) / self.UPB.sum(), 2)
                     self.ws[f'J{self.x}'] = round(sum(self.UPB * self.CLTV) / self.UPB.sum(), 2)
-
                 bottom = top
+
+            # Bottom Border
+            thin = Side(border_style="thin", color="000000")
+            for row in self.ws[f'B{self.x}:J{self.x}']:
+                for cell in row:
+                    cell.border = Border(bottom=thin)
+
+            # Min, Max, Weighted Average
+            self.x += 1
+            if field != "UPB":
+                self.ws[
+                    f'B{self.x}'] = f'Min: {round(self.df[field].min(), 2)}, Max: {round(self.df[field].max(), 2)}, WAvg: {round(sum(self.df["UPB"] * self.df[field]) / self.df["UPB"].sum(), 2)}'
+            else:
+                self.ws[f'B{self.x}'] = f'Average: {round(self.df[field].sum() / self.df[field].count(), 2):,}'
+            self.ws[f'B{self.x}'].font = Font(bold=True)
 
             self.x += 3
 
-        # Function that interates through data and groupsby loan characteristic for fields with no numerical ranges
+        # Function that interates through data and groupsby loan characteristic for fields with no numerical ranges 
         def Grouper2(field):
             self.ws[f'B{self.x - 1}'] = field
             self.ws[f'B{self.x - 1}'].font = Font(bold=True, size=18)
@@ -380,37 +395,43 @@ class Mainapp:
             df2 = self.df.groupby(field, as_index=False)["UPB"].sum()
             df2 = df2.sort_values("UPB", ascending=False)
 
-            for x in df2[field]:
-                x_upbs = self.df["UPB"].loc[(self.df[field] == x)]
-                x_rates = self.df["Rate"].loc[(self.df[field] == x)]
-                x_ficos = self.df["FICO"].loc[(self.df[field] == x)]
-                x_ltvs = self.df["LTV"].loc[(self.df[field] == x)]
-                x_cltvs = self.df["CLTV"].loc[(self.df[field] == x)]
-                x_sum = round(self.df["UPB"].loc[(self.df[field] == x)].sum(), 2)
-                x_count = self.df["UPB"].loc[(self.df[field] == x)].count()
+            for i in df2[field]:
+                i_upbs = self.df["UPB"].loc[(self.df[field] == i)]
+                i_rates = self.df["Rate"].loc[(self.df[field] == i)]
+                i_ficos = self.df["FICO"].loc[(self.df[field] == i)]
+                i_ltvs = self.df["LTV"].loc[(self.df[field] == i)]
+                i_cltvs = self.df["CLTV"].loc[(self.df[field] == i)]
+                i_sum = round(self.df["UPB"].loc[(self.df[field] == i)].sum(), 2)
+                i_count = self.df["UPB"].loc[(self.df[field] == i)].count()
 
                 self.x += 1
-                self.ws[f'B{self.x}'] = x
-                self.ws[f'C{self.x}'] = x_count
-                self.ws[f'D{self.x}'] = x_sum
+                self.ws[f'B{self.x}'] = i
+                self.ws[f'C{self.x}'] = i_count
+                self.ws[f'D{self.x}'] = i_sum
                 self.ws[f'D{self.x}'].number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-                self.ws[f'E{self.x}'] = round((x_sum / self.df["UPB"].sum()), 4)
+                self.ws[f'E{self.x}'] = round((i_sum / self.df["UPB"].sum()), 4)
                 self.ws[f'E{self.x}'].number_format = numbers.FORMAT_PERCENTAGE_00
 
-                if x_count == 0:
+                if i_count == 0:
                     self.ws[f'F{self.x}'] = 0
                     self.ws[f'G{self.x}'] = 0
                     self.ws[f'H{self.x}'] = 0
                     self.ws[f'I{self.x}'] = 0
                     self.ws[f'J{self.x}'] = 0
                 else:
-                    self.ws[f'F{self.x}'] = round(x_sum / x_count, 2)
+                    self.ws[f'F{self.x}'] = round(i_sum / i_count, 2)
                     self.ws[f'F{self.x}'].number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-                    self.ws[f'G{self.x}'] = round(sum(x_upbs * x_rates) / x_sum, 2) / 100
+                    self.ws[f'G{self.x}'] = round(sum(i_upbs * i_rates) / i_sum, 2) / 100
                     self.ws[f'G{self.x}'].number_format = numbers.FORMAT_PERCENTAGE_00
-                    self.ws[f'H{self.x}'] = int(sum(x_upbs * x_ficos) / x_sum)
-                    self.ws[f'I{self.x}'] = round(sum(x_upbs * x_ltvs) / x_sum, 2)
-                    self.ws[f'J{self.x}'] = round(sum(x_upbs * x_cltvs) / x_sum, 2)
+                    self.ws[f'H{self.x}'] = int(sum(i_upbs * i_ficos) / i_sum)
+                    self.ws[f'I{self.x}'] = round(sum(i_upbs * i_ltvs) / i_sum, 2)
+                    self.ws[f'J{self.x}'] = round(sum(i_upbs * i_cltvs) / i_sum, 2)
+
+                    # Bottom Border        
+            thin = Side(border_style="thin", color="000000")
+            for row in self.ws[f'B{self.x}:J{self.x}']:
+                for cell in row:
+                    cell.border = Border(bottom=thin)
 
             self.x += 3
 
